@@ -31,7 +31,9 @@ class SuppressScriptRunContextFilter(logging.Filter):
         return True
 logging.getLogger().addFilter(SuppressScriptRunContextFilter())
 # ======= end suppression block =======
-
+from streamlit_mic_recorder import mic_recorder
+import speech_recognition as sr
+import tempfile
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -407,34 +409,42 @@ def train_xgb_from_indicators(ind_df: pd.DataFrame, n_splits=5, seed=42):
 # Voice Command Interface (NEW)
 # --------------------------
 st.sidebar.markdown("---")
-st.sidebar.header("🎤 Voice Commands")
+st.sidebar.header("🎤 Voice Command Input")
 
-if SPEECH_RECOGNITION_AVAILABLE:
-    st.sidebar.write("**Supported commands:**")
-    st.sidebar.write("• 'Fetch data for [stock]'")
-    st.sidebar.write("• 'Show news for [stock]'")
-    st.sidebar.write("• 'Predict [stock]'")
-    st.sidebar.write("• 'Train model for [stock]'")
-    
-    if st.sidebar.button("🎤 Start Voice Command", key="voice_btn", help="Click and speak"):
-        with st.spinner("🎤 Listening..."):
-            command_text = voice_assistant.listen(timeout=5)
-            
-        if command_text:
-            st.sidebar.success(f"Heard: '{command_text}'")
-            command, ticker = voice_assistant.parse_command(command_text)
-            
-            if command and ticker:
-                st.session_state['voice_command_result'] = (command, ticker)
-                st.session_state['current_ticker'] = ticker
-                voice_assistant.speak(f"Executing {command} for {ticker.replace('.NS', '').replace('.BO', '')}")
-                st.sidebar.success(f"✅ Command: {command} | Ticker: {ticker}")
-                st.rerun()
-            else:
-                st.sidebar.error("❌ Could not understand command or ticker")
-                voice_assistant.speak("Sorry, I could not understand the command")
-else:
-    st.sidebar.warning("Voice commands unavailable. Install: pip install SpeechRecognition pyaudio")
+audio = mic_recorder(
+    start_prompt="🎙️ Start Recording",
+    stop_prompt="🛑 Stop",
+    key="voice_record"
+)
+
+if audio is not None:
+    st.sidebar.success("Audio captured! Click 'Transcribe'")
+
+    if st.sidebar.button("Transcribe"):
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+            f.write(audio["bytes"])
+            wav_path = f.name
+
+        recognizer = sr.Recognizer()
+        with sr.AudioFile(wav_path) as source:
+            data = recognizer.record(source)
+
+        try:
+            text = recognizer.recognize_google(data)
+            st.sidebar.write(f"Recognized: **{text}**")
+            st.session_state["voice_cmd"] = text
+
+        except Exception as e:
+            st.sidebar.error("Failed to recognize speech")
+                 
+ if "voice_cmd" in st.session_state:
+    cmd_text = st.session_state["voice_cmd"].lower()
+    st.write("Command:", cmd_text)
+    # Example mapping
+    if "news" in cmd_text:
+        st.session_state['voice_command_result'] = ("news", "RELIANCE.NS")
+        st.rerun()
+
 
 # Execute voice command if present
 if st.session_state['voice_command_result']:
@@ -1034,5 +1044,6 @@ with col2:
     st.markdown("📊 **Real-time Data & News**")
 with col3:
     st.markdown("🎤 **Voice-Powered Analysis**")
+
 
 st.markdown("</div>", unsafe_allow_html=True)
