@@ -10,3 +10,5 @@ joblib
 ta
 matplotlib
 seaborn
+SpeechRecognition
+PyAudio
