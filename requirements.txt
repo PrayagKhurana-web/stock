@@ -10,5 +10,6 @@ joblib
 ta
 matplotlib
 seaborn
-SpeechRecognition
-PyAudio
+streamlit-mic-recorder
+speechrecognition
+pydub
